@@ -1,12 +1,25 @@
 # RoadGuard AI — Intelligent Road Condition Monitoring System
 ### Final-Year B.Tech Artificial Intelligence and Data Science Capstone Project
 
-![System Theme](https://img.shields.io/badge/Theme-Dark%20Navy%20Municipal%20Intelligence-0b1120?style=for-the-badge)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Vercel%20App-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://road-guard-ai-psi.vercel.app)
+[![API Status](https://img.shields.io/badge/API-Render%20Cloud-46E3B7?style=for-the-badge&logo=render&logoColor=black)](https://roadguard-ai-backend-88h1.onrender.com)
+[![Swagger Docs](https://img.shields.io/badge/API%20Docs-Swagger-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://roadguard-ai-backend-88h1.onrender.com/docs)
 ![FastAPI](https://img.shields.io/badge/Backend-FastAPI%20v0.139-009688?style=for-the-badge&logo=fastapi&logoColor=white)
 ![React](https://img.shields.io/badge/Frontend-React%2018%20%2B%20Vite%20%2B%20Tailwind-2563eb?style=for-the-badge&logo=react&logoColor=white)
 ![YOLOv8](https://img.shields.io/badge/AI%20Model-Ultralytics%20YOLOv8-10b981?style=for-the-badge&logo=opencv&logoColor=white)
-![Database](https://img.shields.io/badge/Database-SQLite%203-0284c7?style=for-the-badge&logo=sqlite&logoColor=white)
-![GIS](https://img.shields.io/badge/GIS-React%20Leaflet%20%2B%20OSM-f59e0b?style=for-the-badge&logo=openstreetmap&logoColor=white)
+
+---
+
+## 🌐 Live Production Deployment
+
+RoadGuard AI is deployed and publicly accessible online:
+
+| Component | Platform | Public URL | Description |
+| :--- | :--- | :--- | :--- |
+| **Frontend Web App** | **Vercel** | [https://road-guard-ai-psi.vercel.app](https://road-guard-ai-psi.vercel.app) | Complete municipal monitoring dashboard, GIS map & detection UI |
+| **Backend API** | **Render** | [https://roadguard-ai-backend-88h1.onrender.com](https://roadguard-ai-backend-88h1.onrender.com) | Python FastAPI ASGI web service with YOLOv8 inference engine |
+| **Interactive API Docs** | **FastAPI** | [https://roadguard-ai-backend-88h1.onrender.com/docs](https://roadguard-ai-backend-88h1.onrender.com/docs) | Live Swagger API documentation & test console |
+| **System Health Check** | **Render** | [https://roadguard-ai-backend-88h1.onrender.com/api/health](https://roadguard-ai-backend-88h1.onrender.com/api/health) | Live telemetry (database status, active weights, CPU device) |
 
 ---
 

@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+venv/
+ENV/
+env/
+
+# Node
+node_modules/
+frontend/dist/
+frontend/node_modules/
+.npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database, Cache & Artifacts
+.pytest_cache/
+*.db-journal
+
+# Temporary Uploads, Outputs & Reports (Keep directory structure via .gitkeep)
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/outputs/*
+!backend/outputs/.gitkeep
+reports/*.pdf
+reports/*.csv
+!reports/.gitkeep
+
+# Exclude local duplicate model backup files (Keep active pothole_best.pt and yolov8n.pt)
+backend/weights/*_backup.pt
+
+# Environment & OS files
+.env
+.env.local
+.env.*.local
+.DS_Store
+Thumbs.db

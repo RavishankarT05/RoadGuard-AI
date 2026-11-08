@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Any
 from pydantic_settings import BaseSettings
 
 # Base directories
@@ -30,13 +31,8 @@ class Settings(BaseSettings):
     CONFIDENCE_THRESHOLD: float = 0.25
     IOU_THRESHOLD: float = 0.45
     
-    # CORS
-    CORS_ORIGINS: list = [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000"
-    ]
+    # CORS (supports comma-separated string or list)
+    CORS_ORIGINS: Any = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000"
 
     class Config:
         env_file = ".env"

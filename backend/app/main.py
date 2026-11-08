@@ -26,8 +26,14 @@ app = FastAPI(
 )
 
 # CORS Configuration for local development and deployed frontend (Vercel)
-cors_env = os.environ.get("CORS_ORIGINS", "")
-allowed_origins = [o.strip() for o in cors_env.split(",") if o.strip()]
+cors_env = os.environ.get("CORS_ORIGINS") or str(settings.CORS_ORIGINS)
+if isinstance(cors_env, list):
+    raw_origins = cors_env
+else:
+    raw_origins = [o.strip() for o in str(cors_env).split(",") if o.strip()]
+
+# Filter out wildcard origins from allow_origins (handled by allow_origin_regex)
+allowed_origins = [o for o in raw_origins if "*" not in o]
 if not allowed_origins:
     allowed_origins = [
         "http://localhost:5173",

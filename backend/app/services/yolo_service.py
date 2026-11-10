@@ -301,6 +301,13 @@ class YOLOService:
                             "class_name": "pothole"
                         })
 
+        # Free PyTorch tensor memory immediately
+        try:
+            del global_results
+        except Exception:
+            pass
+        gc.collect()
+
         # 3. Non-Maximum Suppression & Weighted Box Fusion
         if len(detections) > 1:
             detections = self._merge_and_suppress_boxes(detections, iou_thresh=0.45)

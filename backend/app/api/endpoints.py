@@ -151,7 +151,7 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
 # 3. AI Pothole Detection (Image Inference)
 # -------------------------------------------------------------
 @router.post("/detect/image")
-async def detect_road_image(
+def detect_road_image(
     file: UploadFile = File(...),
     road_name: str = Form("Central Ring Road"),
     latitude: float = Form(12.9716),
@@ -182,9 +182,8 @@ async def detect_road_image(
         shutil.copyfileobj(file.file, buffer)
 
     try:
-        # Run Local YOLO Inference in asynchronous worker threadpool to prevent event loop blocking
-        result = await run_in_threadpool(
-            yolo_service.detect_potholes,
+        # Run Local YOLO Inference synchronously to avoid asyncio threadpool lock contention with PyTorch
+        result = yolo_service.detect_potholes(
             image_path=str(upload_path),
             traffic_importance=traffic_importance,
             facility_risk=facility_risk

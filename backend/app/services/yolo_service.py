@@ -14,6 +14,11 @@ from backend.app.core.config import settings
 from backend.app.services.severity_service import SeverityService
 
 # Optimize PyTorch CPU threading for constrained single-core / low-vCPU cloud containers
+try:
+    cv2.setNumThreads(1)
+except Exception:
+    pass
+
 if not torch.cuda.is_available():
     try:
         torch.set_num_threads(1)

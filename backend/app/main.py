@@ -3,6 +3,9 @@ import os
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["YOLO_VERBOSE"] = "False"
+os.environ["SETTINGS_OFFLINE"] = "True"
+os.environ["ULTRALYTICS_AUTOINSTALL"] = "0"
 
 # Crucial for Linux stability: Import torch before cv2 / image libraries
 import torch

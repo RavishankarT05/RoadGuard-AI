@@ -1,4 +1,12 @@
 import os
+# Prevent OpenMP / MKL thread contention and multi-runtime segfaults on Linux
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+
+# Crucial for Linux stability: Import torch before cv2 / image libraries
+import torch
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles

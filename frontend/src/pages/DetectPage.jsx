@@ -59,32 +59,30 @@ export function DetectPage() {
     }
   };
 
-  // Helper to load sample test images from local demo_images directory or generated canvas
+  // Helper to load sample test images from public/samples directory or generated canvas
   const loadDemoSample = async (sampleName) => {
     try {
       setLoading(true);
       setError('');
       setResult(null);
 
-      // Fetch from demo_images
-      let fetchUrl = '';
-      if (sampleName === 'critical') {
-        fetchUrl = '/demo_images/sample_pothole_critical.jpg';
-      } else if (sampleName === 'moderate') {
-        fetchUrl = '/demo_images/sample_pothole_moderate.jpg';
-      } else {
-        fetchUrl = '/demo_images/sample_road_clean.jpg';
+      let fetchUrl = '/samples/pothole_critical.jpg';
+      let fileName = 'pothole_critical.jpg';
+      if (sampleName === 'moderate') {
+        fetchUrl = '/samples/pothole_moderate.jpg';
+        fileName = 'pothole_moderate.jpg';
+      } else if (sampleName === 'clean') {
+        fetchUrl = '/samples/road_clean.jpg';
+        fileName = 'road_clean.jpg';
       }
 
-      // If in dev environment, try fetching or create dynamic canvas fallback
       const resp = await fetch(fetchUrl).catch(() => null);
       if (resp && resp.ok) {
         const blob = await resp.blob();
-        const file = new File([blob], `${sampleName}_road.jpg`, { type: 'image/jpeg' });
+        const file = new File([blob], fileName, { type: 'image/jpeg' });
         setSelectedFile(file);
         setPreviewUrl(URL.createObjectURL(file));
       } else {
-        // Fallback canvas generator
         createCanvasSample(sampleName);
       }
     } catch (e) {
@@ -499,111 +497,107 @@ export function DetectPage() {
               </div>
 
               {/* View Mode Toolbar */}
-              {result.detected && (
-                <div className="flex flex-wrap items-center justify-between gap-2 bg-navy-950 p-2 rounded-xl border border-navy-800 text-xs">
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => setViewMode('annotated')}
-                      className={`px-3 py-1 rounded-lg font-medium transition-all ${
-                        viewMode === 'annotated'
-                          ? 'bg-cyan-600 text-white shadow-sm'
-                          : 'text-slate-400 hover:text-white hover:bg-navy-900'
-                      }`}
-                    >
-                      Annotated HUD View
-                    </button>
-                    <button
-                      onClick={() => setViewMode('original')}
-                      className={`px-3 py-1 rounded-lg font-medium transition-all ${
-                        viewMode === 'original'
-                          ? 'bg-cyan-600 text-white shadow-sm'
-                          : 'text-slate-400 hover:text-white hover:bg-navy-900'
-                      }`}
-                    >
-                      Original Scene
-                    </button>
-                    <button
-                      onClick={() => setViewMode('split')}
-                      className={`px-3 py-1 rounded-lg font-medium transition-all ${
-                        viewMode === 'split'
-                          ? 'bg-cyan-600 text-white shadow-sm'
-                          : 'text-slate-400 hover:text-white hover:bg-navy-900'
-                      }`}
-                    >
-                      Side-by-Side
-                    </button>
-                  </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 bg-navy-950 p-2 rounded-xl border border-navy-800 text-xs">
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setViewMode('annotated')}
+                    className={`px-3 py-1 rounded-lg font-medium transition-all ${
+                      viewMode === 'annotated'
+                        ? 'bg-cyan-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-white hover:bg-navy-900'
+                    }`}
+                  >
+                    Annotated HUD View
+                  </button>
+                  <button
+                    onClick={() => setViewMode('original')}
+                    className={`px-3 py-1 rounded-lg font-medium transition-all ${
+                      viewMode === 'original'
+                        ? 'bg-cyan-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-white hover:bg-navy-900'
+                    }`}
+                  >
+                    Original Scene
+                  </button>
+                  <button
+                    onClick={() => setViewMode('split')}
+                    className={`px-3 py-1 rounded-lg font-medium transition-all ${
+                      viewMode === 'split'
+                        ? 'bg-cyan-600 text-white shadow-sm'
+                        : 'text-slate-400 hover:text-white hover:bg-navy-900'
+                    }`}
+                  >
+                    Side-by-Side
+                  </button>
+                </div>
 
-                  {/* Zoom Controls */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => setZoomLevel((z) => Math.max(1, z - 0.25))}
-                      className="p-1.5 rounded-lg bg-navy-900 text-slate-300 hover:text-white border border-navy-800"
-                      title="Zoom Out"
-                    >
-                      <ZoomOut className="w-3.5 h-3.5" />
-                    </button>
-                    <span className="font-mono text-[10px] text-slate-400 px-1">{Math.round(zoomLevel * 100)}%</span>
-                    <button
-                      onClick={() => setZoomLevel((z) => Math.min(3, z + 0.25))}
-                      className="p-1.5 rounded-lg bg-navy-900 text-slate-300 hover:text-white border border-navy-800"
-                      title="Zoom In"
-                    >
-                      <ZoomIn className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => setLightboxImage(viewMode === 'original' ? (previewUrl || getImageUrl(result.original_image_path)) : (result.annotated_image_base64 || getImageUrl(result.annotated_image_path)))}
-                      className="p-1.5 rounded-lg bg-navy-900 text-cyan-400 hover:text-white border border-navy-800 ml-1"
-                      title="Fullscreen Lightbox"
-                    >
-                      <Maximize2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
+                {/* Zoom Controls */}
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setZoomLevel((z) => Math.max(1, z - 0.25))}
+                    className="p-1.5 rounded-lg bg-navy-900 text-slate-300 hover:text-white border border-navy-800"
+                    title="Zoom Out"
+                  >
+                    <ZoomOut className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="font-mono text-[10px] text-slate-400 px-1">{Math.round(zoomLevel * 100)}%</span>
+                  <button
+                    onClick={() => setZoomLevel((z) => Math.min(3, z + 0.25))}
+                    className="p-1.5 rounded-lg bg-navy-900 text-slate-300 hover:text-white border border-navy-800"
+                    title="Zoom In"
+                  >
+                    <ZoomIn className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => setLightboxImage(viewMode === 'original' ? (previewUrl || getImageUrl(result.original_image_path)) : (result.annotated_image_base64 || getImageUrl(result.annotated_image_path) || previewUrl))}
+                    className="p-1.5 rounded-lg bg-navy-900 text-cyan-400 hover:text-white border border-navy-800 ml-1"
+                    title="Fullscreen Lightbox"
+                  >
+                    <Maximize2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Status Banner when clear */}
+              {!result.detected && (
+                <div className="p-3 bg-emerald-500/10 rounded-xl border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                  <span><strong>Pavement Clear:</strong> AI vision scan verified surface integrity. Zero road hazards detected.</span>
                 </div>
               )}
 
               {/* Main Image Viewport with Zoom */}
-              {result.detected ? (
-                <div className="bg-navy-950 p-2 rounded-xl border border-navy-800 overflow-hidden relative">
-                  {viewMode === 'split' ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-mono block mb-1">Original Scene</span>
-                        <img
-                          src={previewUrl || getImageUrl(result.original_image_path)}
-                          alt="Original Road"
-                          className="w-full h-72 object-cover rounded-lg border border-navy-800"
-                        />
-                      </div>
-                      <div>
-                        <span className="text-[10px] text-cyan-400 font-mono block mb-1">Annotated Damage Overlay</span>
-                        <img
-                          src={result.annotated_image_base64 || getImageUrl(result.annotated_image_path)}
-                          alt="Annotated Road"
-                          className="w-full h-72 object-cover rounded-lg border border-navy-800"
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="overflow-auto max-h-[420px] rounded-lg flex items-center justify-center bg-black/40">
+              <div className="bg-navy-950 p-2 rounded-xl border border-navy-800 overflow-hidden relative">
+                {viewMode === 'split' ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <span className="text-[10px] text-slate-400 font-mono block mb-1">Original Scene</span>
                       <img
-                        src={viewMode === 'original' ? (previewUrl || getImageUrl(result.original_image_path)) : (result.annotated_image_base64 || getImageUrl(result.annotated_image_path))}
-                        alt="Road Visual"
-                        style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center', transition: 'transform 0.15s ease' }}
-                        className="max-w-full object-contain rounded-lg border border-navy-800"
+                        src={previewUrl || getImageUrl(result.original_image_path)}
+                        alt="Original Road"
+                        className="w-full h-72 object-cover rounded-lg border border-navy-800"
                       />
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div className="p-8 bg-navy-950 rounded-xl border border-navy-800 text-center space-y-2">
-                  <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto" />
-                  <h4 className="text-sm font-semibold text-white">Pavement Clear: No Hazards Detected</h4>
-                  <p className="text-xs text-slate-400 max-w-md mx-auto">
-                    Multi-scale neural inference and contrast scanning verified normal asphalt surface integrity. Zero false positive records created.
-                  </p>
-                </div>
-              )}
+                    <div>
+                      <span className="text-[10px] text-cyan-400 font-mono block mb-1">Annotated Damage Overlay</span>
+                      <img
+                        src={result.annotated_image_base64 || getImageUrl(result.annotated_image_path) || previewUrl}
+                        alt="Annotated Road"
+                        className="w-full h-72 object-cover rounded-lg border border-navy-800"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="overflow-auto max-h-[420px] rounded-lg flex items-center justify-center bg-black/40">
+                    <img
+                      src={viewMode === 'original' ? (previewUrl || getImageUrl(result.original_image_path)) : (result.annotated_image_base64 || getImageUrl(result.annotated_image_path) || previewUrl)}
+                      alt="Road Visual"
+                      style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center', transition: 'transform 0.15s ease' }}
+                      className="max-w-full object-contain rounded-lg border border-navy-800"
+                    />
+                  </div>
+                )}
+              </div>
 
               {/* Summary Stats Cards */}
               {result.detected && result.summary && (

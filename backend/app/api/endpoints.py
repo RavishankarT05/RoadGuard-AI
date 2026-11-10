@@ -211,7 +211,11 @@ async def detect_road_image(
                 "avg_confidence": 0.0
             },
             "inference_time_ms": result["inference_time_ms"],
-            "original_image_path": f"/uploads/{clean_filename}"
+            "original_image_path": f"/uploads/{clean_filename}",
+            "original_image_url": f"/uploads/{clean_filename}",
+            "annotated_image_path": result.get("annotated_image_path"),
+            "annotated_image_base64": result.get("annotated_image_base64"),
+            "annotated_image_url": result.get("annotated_image_path")
         }
 
     # If defect detected, calculate explainable priority score

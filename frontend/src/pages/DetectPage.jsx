@@ -36,6 +36,7 @@ export function DetectPage() {
   const [saveToDb, setSaveToDb] = useState(true);
 
   const [loading, setLoading] = useState(false);
+  const [progressPhase, setProgressPhase] = useState('');
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
 
@@ -170,6 +171,11 @@ export function DetectPage() {
     setLoading(true);
     setError('');
     setResult(null);
+    setProgressPhase('Uploading road image to AI engine...');
+
+    const t1 = setTimeout(() => setProgressPhase('Running YOLOv8 neural defect detection...'), 1200);
+    const t2 = setTimeout(() => setProgressPhase('Analyzing pavement geometry & classifying severity...'), 3500);
+    const t3 = setTimeout(() => setProgressPhase('Cloud server cold-start in progress... please wait (~15-20s)'), 8000);
 
     const formData = new FormData();
     formData.append('file', selectedFile);
@@ -188,13 +194,18 @@ export function DetectPage() {
     } catch (err) {
       setError(err.message || 'Error occurred while running local YOLO inference.');
     } finally {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
       setLoading(false);
+      setProgressPhase('');
     }
   };
 
-  const handleDownloadImage = (url, filename) => {
+  const handleDownloadImage = (urlOrBase64, filename) => {
+    if (!urlOrBase64) return;
     const link = document.createElement('a');
-    link.href = url;
+    link.href = urlOrBase64;
     link.download = filename || 'pothole_detection.jpg';
     document.body.appendChild(link);
     link.click();
@@ -423,6 +434,29 @@ export function DetectPage() {
             </div>
           )}
 
+          {/* Real-Time Processing Status Card (Displays during inference or cold-start) */}
+          {loading && (
+            <div className="bg-navy-900 rounded-2xl border border-cyan-500/30 shadow-2xl p-6 text-center space-y-4">
+              <div className="relative w-16 h-16 mx-auto">
+                <div className="absolute inset-0 rounded-full border-4 border-cyan-500/20 animate-ping" />
+                <div className="relative w-16 h-16 rounded-full border-4 border-cyan-500/30 border-t-cyan-400 animate-spin flex items-center justify-center">
+                  <Sparkles className="w-6 h-6 text-cyan-400" />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <h4 className="text-sm font-semibold text-white tracking-wide">
+                  {progressPhase || 'Processing Road Image with YOLOv8...'}
+                </h4>
+                <p className="text-xs text-slate-400 font-mono">
+                  Running local neural inference • CLAHE contrast enhancement • Cavity contour analysis
+                </p>
+              </div>
+              <div className="w-full bg-navy-950 h-1.5 rounded-full overflow-hidden border border-navy-800">
+                <div className="bg-gradient-to-r from-cyan-500 via-blue-500 to-emerald-400 h-full w-2/3 animate-pulse rounded-full" />
+              </div>
+            </div>
+          )}
+
           {result ? (
             <div className="bg-navy-900 rounded-2xl border border-navy-800 shadow-xl overflow-hidden space-y-5 p-5">
               {/* Detection Summary Banner */}
@@ -451,9 +485,9 @@ export function DetectPage() {
                       Code: #{result.pothole_code}
                     </span>
                   )}
-                  {result.annotated_image_path && (
+                  {(result.annotated_image_base64 || result.annotated_image_path) && (
                     <button
-                      onClick={() => handleDownloadImage(getImageUrl(result.annotated_image_path), `roadguard_annotated_${result.pothole_code || 'defect'}.jpg`)}
+                      onClick={() => handleDownloadImage(result.annotated_image_base64 || getImageUrl(result.annotated_image_path), `roadguard_annotated_${result.pothole_code || 'defect'}.jpg`)}
                       className="px-3 py-1 rounded-lg text-xs font-medium bg-navy-800 hover:bg-navy-700 text-cyan-300 border border-navy-700 flex items-center gap-1.5 transition-colors"
                       title="Download Annotated Image"
                     >
@@ -518,7 +552,7 @@ export function DetectPage() {
                       <ZoomIn className="w-3.5 h-3.5" />
                     </button>
                     <button
-                      onClick={() => setLightboxImage(viewMode === 'original' ? getImageUrl(result.original_image_path) : getImageUrl(result.annotated_image_path))}
+                      onClick={() => setLightboxImage(viewMode === 'original' ? (previewUrl || getImageUrl(result.original_image_path)) : (result.annotated_image_base64 || getImageUrl(result.annotated_image_path)))}
                       className="p-1.5 rounded-lg bg-navy-900 text-cyan-400 hover:text-white border border-navy-800 ml-1"
                       title="Fullscreen Lightbox"
                     >
@@ -536,7 +570,7 @@ export function DetectPage() {
                       <div>
                         <span className="text-[10px] text-slate-400 font-mono block mb-1">Original Scene</span>
                         <img
-                          src={getImageUrl(result.original_image_path)}
+                          src={previewUrl || getImageUrl(result.original_image_path)}
                           alt="Original Road"
                           className="w-full h-72 object-cover rounded-lg border border-navy-800"
                         />
@@ -544,7 +578,7 @@ export function DetectPage() {
                       <div>
                         <span className="text-[10px] text-cyan-400 font-mono block mb-1">Annotated Damage Overlay</span>
                         <img
-                          src={getImageUrl(result.annotated_image_path)}
+                          src={result.annotated_image_base64 || getImageUrl(result.annotated_image_path)}
                           alt="Annotated Road"
                           className="w-full h-72 object-cover rounded-lg border border-navy-800"
                         />
@@ -553,7 +587,7 @@ export function DetectPage() {
                   ) : (
                     <div className="overflow-auto max-h-[420px] rounded-lg flex items-center justify-center bg-black/40">
                       <img
-                        src={viewMode === 'original' ? getImageUrl(result.original_image_path) : getImageUrl(result.annotated_image_path)}
+                        src={viewMode === 'original' ? (previewUrl || getImageUrl(result.original_image_path)) : (result.annotated_image_base64 || getImageUrl(result.annotated_image_path))}
                         alt="Road Visual"
                         style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'center center', transition: 'transform 0.15s ease' }}
                         className="max-w-full object-contain rounded-lg border border-navy-800"
@@ -624,9 +658,9 @@ export function DetectPage() {
                             <SeverityBadge severity={c.severity} size="sm" showIcon={false} />
                           </div>
                           <img
-                            src={getImageUrl(c.crop_path)}
+                            src={c.crop_base64 || getImageUrl(c.crop_path)}
                             alt={`Crop #${c.detection_id}`}
-                            onClick={() => setLightboxImage(getImageUrl(c.crop_path))}
+                            onClick={() => setLightboxImage(c.crop_base64 || getImageUrl(c.crop_path))}
                             className="w-full h-24 object-cover rounded-lg border border-navy-700 cursor-pointer hover:opacity-90"
                           />
                         </div>
@@ -641,7 +675,7 @@ export function DetectPage() {
                             <span>{c.width}x{c.height}px</span>
                           </div>
                           <button
-                            onClick={() => handleDownloadImage(getImageUrl(c.crop_path), `pothole_crop_${c.detection_id}.jpg`)}
+                            onClick={() => handleDownloadImage(c.crop_base64 || getImageUrl(c.crop_path), `pothole_crop_${c.detection_id}.jpg`)}
                             className="w-full mt-1.5 py-1 rounded bg-navy-900 hover:bg-navy-850 text-slate-300 hover:text-white border border-navy-700 flex items-center justify-center gap-1 text-[10px] transition-colors"
                           >
                             <Download className="w-3 h-3" />

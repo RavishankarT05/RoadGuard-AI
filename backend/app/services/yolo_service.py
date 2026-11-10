@@ -1,6 +1,7 @@
 import os
 import cv2
 import time
+import base64
 import torch
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
@@ -10,6 +11,14 @@ from ultralytics import YOLO
 
 from backend.app.core.config import settings
 from backend.app.services.severity_service import SeverityService
+
+# Optimize PyTorch CPU threading for constrained single-core / low-vCPU cloud containers
+if not torch.cuda.is_available():
+    try:
+        torch.set_num_threads(1)
+        torch.set_num_interop_threads(1)
+    except Exception:
+        pass
 
 class YOLOService:
     _instance = None
@@ -66,6 +75,15 @@ class YOLOService:
             self.classes = list(self.model.names.values()) if hasattr(self.model, "names") else []
             self.is_loaded = True
             print(f"[RoadGuard AI] Loaded YOLO Model '{self.model_name}' (Classes: {self.model.names}) on device '{self.device}'.")
+
+            # Pre-warm neural kernels to eliminate cold-start first inference latency
+            try:
+                dummy = np.zeros((320, 320, 3), dtype=np.uint8)
+                with torch.inference_mode():
+                    self.model.predict(source=dummy, imgsz=320, device=self.device, verbose=False)
+                print("[RoadGuard AI] Neural vision inference engine pre-warmed successfully.")
+            except Exception as w_err:
+                print(f"[RoadGuard AI] Pre-warm note: {w_err}")
         except Exception as e:
             print(f"[RoadGuard AI] Warning: Error initializing YOLO model: {e}")
             self.model = None
@@ -219,6 +237,13 @@ class YOLOService:
         if img_bgr is None:
             raise ValueError(f"Could not read image file at {image_path}")
 
+        # Performance & memory safeguard: downscale extreme resolutions to max 1280px (preserves full aspect ratio)
+        orig_h, orig_w = img_bgr.shape[:2]
+        max_dim = 1280
+        if max(orig_h, orig_w) > max_dim:
+            scale_factor = max_dim / float(max(orig_h, orig_w))
+            img_bgr = cv2.resize(img_bgr, (int(orig_w * scale_factor), int(orig_h * scale_factor)), interpolation=cv2.INTER_AREA)
+
         img_h, img_w = img_bgr.shape[:2]
         total_img_area = float(img_w * img_h)
 
@@ -234,15 +259,16 @@ class YOLOService:
             any("pothole" in str(c).lower() or "damage" in str(c).lower() for c in self.classes)
         )
 
-        # 2. Run Global Full-Frame YOLO Inference
-        global_results = self.model.predict(
-            source=preprocessed_bgr,
-            conf=self.conf_threshold,
-            iou=self.iou_threshold,
-            device=self.device,
-            verbose=False,
-            imgsz=640
-        )
+        # 2. Run Global Full-Frame YOLO Inference (with torch.inference_mode for speed & memory)
+        with torch.inference_mode():
+            global_results = self.model.predict(
+                source=preprocessed_bgr,
+                conf=self.conf_threshold,
+                iou=self.iou_threshold,
+                device=self.device,
+                verbose=False,
+                imgsz=640
+            )
 
         if global_results and len(global_results) > 0:
             for r in global_results:
@@ -266,47 +292,50 @@ class YOLOService:
                             "class_name": "pothole"
                         })
 
-        # 3. Multi-Scale Sliced Inference for High-Resolution Frames (w > 800 or h > 800)
-        if img_w >= 800 or img_h >= 800:
-            tiles = self._slice_image(preprocessed_bgr, tile_size=640, overlap_ratio=0.25)
-            # Only run if more than 1 tile was generated
+        # 3. Targeted Sliced Inference:
+        # Only run if global pass didn't find clear defects or image is high-resolution, capped at max 4 tiles to prevent CPU throttling
+        if (len(detections) == 0 or len(detections) <= 1) and (img_w >= 800 or img_h >= 800):
+            tiles = self._slice_image(preprocessed_bgr, tile_size=640, overlap_ratio=0.20)
+            # Cap to at most 4 tiles
             if len(tiles) > 1:
-                for tile_img, x_off, y_off in tiles:
-                    tile_results = self.model.predict(
-                        source=tile_img,
-                        conf=self.conf_threshold,
-                        iou=self.iou_threshold,
-                        device=self.device,
-                        verbose=False,
-                        imgsz=640
-                    )
-                    if tile_results and len(tile_results) > 0:
-                        for r in tile_results:
-                            for box in r.boxes:
-                                cls_id = int(box.cls[0].item())
-                                cls_name = self.model.names.get(cls_id, "pothole")
-                                if is_dedicated_pothole_model or "pothole" in str(cls_name).lower():
-                                    tx1, ty1, tx2, ty2 = box.xyxy[0].tolist()
-                                    tconf = float(box.conf[0].item())
-                                    
-                                    # Translate tile coords to global coords
-                                    gx1 = min(img_w - 1, max(0.0, tx1 + x_off))
-                                    gy1 = min(img_h - 1, max(0.0, ty1 + y_off))
-                                    gx2 = min(img_w, max(gx1 + 2.0, tx2 + x_off))
-                                    gy2 = min(img_h, max(gy1 + 2.0, ty2 + y_off))
-                                    
-                                    bw = gx2 - gx1
-                                    bh = gy2 - gy1
-                                    detections.append({
-                                        "bbox_x1": round(gx1, 1),
-                                        "bbox_y1": round(gy1, 1),
-                                        "bbox_x2": round(gx2, 1),
-                                        "bbox_y2": round(gy2, 1),
-                                        "confidence": round(tconf, 4),
-                                        "area_pixels": round(bw * bh, 1),
-                                        "area_ratio": round((bw * bh) / total_img_area, 5),
-                                        "class_name": "pothole"
-                                    })
+                tiles = tiles[:4]
+                with torch.inference_mode():
+                    for tile_img, x_off, y_off in tiles:
+                        tile_results = self.model.predict(
+                            source=tile_img,
+                            conf=self.conf_threshold,
+                            iou=self.iou_threshold,
+                            device=self.device,
+                            verbose=False,
+                            imgsz=640
+                        )
+                        if tile_results and len(tile_results) > 0:
+                            for r in tile_results:
+                                for box in r.boxes:
+                                    cls_id = int(box.cls[0].item())
+                                    cls_name = self.model.names.get(cls_id, "pothole")
+                                    if is_dedicated_pothole_model or "pothole" in str(cls_name).lower():
+                                        tx1, ty1, tx2, ty2 = box.xyxy[0].tolist()
+                                        tconf = float(box.conf[0].item())
+                                        
+                                        # Translate tile coords to global coords
+                                        gx1 = min(img_w - 1, max(0.0, tx1 + x_off))
+                                        gy1 = min(img_h - 1, max(0.0, ty1 + y_off))
+                                        gx2 = min(img_w, max(gx1 + 2.0, tx2 + x_off))
+                                        gy2 = min(img_h, max(gy1 + 2.0, ty2 + y_off))
+                                        
+                                        bw = gx2 - gx1
+                                        bh = gy2 - gy1
+                                        detections.append({
+                                            "bbox_x1": round(gx1, 1),
+                                            "bbox_y1": round(gy1, 1),
+                                            "bbox_x2": round(gx2, 1),
+                                            "bbox_y2": round(gy2, 1),
+                                            "confidence": round(tconf, 4),
+                                            "area_pixels": round(bw * bh, 1),
+                                            "area_ratio": round((bw * bh) / total_img_area, 5),
+                                            "class_name": "pothole"
+                                        })
 
         # 4. Complementary Morphological Road Cavity & Fracture Analysis
         # If neural forward pass found 0 or few detections (e.g. on synthetic tests or severe road fissures),
@@ -384,7 +413,7 @@ class YOLOService:
         avg_confidence = round((conf_sum / len(detections)) * 100, 1)
 
         # 7. Render High-Visibility Output Annotation
-        annotated_path = self._render_enhanced_annotation(img_bgr, detections)
+        annotated_path, annotated_b64 = self._render_enhanced_annotation(img_bgr, detections)
 
         # 8. Extract & Save Individual Damage Crops
         crops = self._extract_damage_crops(img_bgr, detections)
@@ -408,6 +437,7 @@ class YOLOService:
             "max_severity_score": max_severity_score,
             "severity_reason": primary_reason,
             "annotated_image_path": annotated_path,
+            "annotated_image_base64": annotated_b64,
             "inference_time_ms": inference_time_ms
         }
 
@@ -629,7 +659,17 @@ class YOLOService:
         filename = f"annotated_{int(time.time()*1000)}.jpg"
         save_path = settings.OUTPUTS_DIR / filename
         cv2.imwrite(str(save_path), out_img)
-        return f"/outputs/{filename}"
+
+        # Generate Base64 Data URL for instant, zero-latency frontend display
+        annotated_b64 = None
+        try:
+            success, enc_buf = cv2.imencode(".jpg", out_img, [cv2.IMWRITE_JPEG_QUALITY, 85])
+            if success:
+                annotated_b64 = f"data:image/jpeg;base64,{base64.b64encode(enc_buf).decode('utf-8')}"
+        except Exception as e:
+            print(f"[RoadGuard AI] Base64 encode notice: {e}")
+
+        return f"/outputs/{filename}", annotated_b64
 
     # -------------------------------------------------------------
     # Individual Damage Crops Generator
@@ -670,9 +710,18 @@ class YOLOService:
             crop_url = f"/outputs/{crop_filename}"
             det["crop_path"] = crop_url
 
+            crop_b64 = None
+            try:
+                c_ok, c_buf = cv2.imencode(".jpg", crop_bgr, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                if c_ok:
+                    crop_b64 = f"data:image/jpeg;base64,{base64.b64encode(c_buf).decode('utf-8')}"
+            except Exception:
+                pass
+
             crops.append({
                 "detection_id": idx,
                 "crop_path": crop_url,
+                "crop_base64": crop_b64,
                 "width": int(cx2 - cx1),
                 "height": int(cy2 - cy1),
                 "severity": det.get("severity", "High"),

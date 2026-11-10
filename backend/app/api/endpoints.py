@@ -7,6 +7,7 @@ import datetime
 from typing import Optional, List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, case
 
@@ -181,8 +182,9 @@ async def detect_road_image(
         shutil.copyfileobj(file.file, buffer)
 
     try:
-        # Run Local YOLO Inference
-        result = yolo_service.detect_potholes(
+        # Run Local YOLO Inference in asynchronous worker threadpool to prevent event loop blocking
+        result = await run_in_threadpool(
+            yolo_service.detect_potholes,
             image_path=str(upload_path),
             traffic_importance=traffic_importance,
             facility_risk=facility_risk
@@ -324,8 +326,11 @@ async def detect_road_image(
         "priority_category": pri_cat,
         "priority_breakdown": pri_breakdown,
         "recommended_action": pri_action,
-        "annotated_image_path": result["annotated_image_path"],
+        "annotated_image_path": result.get("annotated_image_path"),
+        "annotated_image_base64": result.get("annotated_image_base64"),
+        "annotated_image_url": result.get("annotated_image_path"),
         "original_image_path": f"/uploads/{clean_filename}",
+        "original_image_url": f"/uploads/{clean_filename}",
         "inference_time_ms": result["inference_time_ms"],
         "saved_pothole_id": created_pothole.id if created_pothole else None,
         "pothole_code": created_pothole.pothole_code if created_pothole else None
@@ -727,3 +732,36 @@ def get_roads_list(db: Session = Depends(get_db)):
     """Returns list of registered municipal roads."""
     roads = db.query(Road).order_by(Road.name).all()
     return roads
+
+# -------------------------------------------------------------
+# 13. Direct Static Output Image Endpoints (CORS-Enabled)
+# -------------------------------------------------------------
+@router.get("/outputs/{filename}")
+def get_output_image(filename: str):
+    """Direct high-speed delivery of annotated images and crops with explicit CORS headers."""
+    file_path = settings.OUTPUTS_DIR / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Output image not found.")
+    return FileResponse(
+        str(file_path),
+        media_type="image/jpeg",
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "public, max-age=86400"
+        }
+    )
+
+@router.get("/uploads/{filename}")
+def get_upload_image(filename: str):
+    """Direct delivery of original uploads with explicit CORS headers."""
+    file_path = settings.UPLOADS_DIR / filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Upload image not found.")
+    return FileResponse(
+        str(file_path),
+        media_type="image/jpeg",
+        headers={
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "public, max-age=86400"
+        }
+    )

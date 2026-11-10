@@ -8,8 +8,13 @@ const API_BASE_URL = STATIC_BASE_URL.endsWith('/api')
 
 export function getImageUrl(path) {
   if (!path) return null;
-  if (path.startsWith('http')) return path;
-  return `${STATIC_BASE_URL}${path.startsWith('/') ? '' : '/'}${path}`;
+  // If already full URL, base64 data URI, or blob URI, return directly
+  if (path.startsWith('http') || path.startsWith('data:') || path.startsWith('blob:')) {
+    return path;
+  }
+  const cleanPath = path.startsWith('/') ? path.slice(1) : path;
+  // Route through /api/ to guarantee CORS headers on cloud hosting
+  return `${API_BASE_URL}/${cleanPath}`;
 }
 
 export async function fetchHealth() {

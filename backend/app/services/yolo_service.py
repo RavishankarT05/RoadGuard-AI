@@ -220,7 +220,8 @@ class YOLOService:
         self,
         image_path: str,
         traffic_importance: str = "High",
-        facility_risk: str = "None"
+        facility_risk: str = "None",
+        confidence_threshold: Optional[float] = None
     ) -> Dict[str, Any]:
         """
         Optimized local road defect detection pipeline.
@@ -268,11 +269,13 @@ class YOLOService:
         # Memory optimization: choose 512 on CPU (32-stride aligned, 50% lighter memory) or 640 on CUDA
         infer_size = 640 if self.device == "cuda" else 512
 
+        active_conf = confidence_threshold if (confidence_threshold is not None and 0.05 <= confidence_threshold <= 0.95) else self.conf_threshold
+
         # 2. Run Global Full-Frame YOLO Inference (with torch.inference_mode for speed & memory)
         with torch.inference_mode():
             global_results = self.model.predict(
                 source=preprocessed_bgr,
-                conf=self.conf_threshold,
+                conf=active_conf,
                 iou=self.iou_threshold,
                 device=self.device,
                 verbose=False,
@@ -308,7 +311,13 @@ class YOLOService:
             pass
         gc.collect()
 
-        # 3. Non-Maximum Suppression & Weighted Box Fusion
+        # 3. Complementary Morphological Road Cavity Analysis (fallback when YOLO sees 0 defects on damaged pavement)
+        if len(detections) == 0:
+            cv_detections = self._detect_cavity_contours(preprocessed_bgr, total_img_area)
+            if cv_detections:
+                detections.extend(cv_detections)
+
+        # 4. Non-Maximum Suppression & Weighted Box Fusion
         if len(detections) > 1:
             detections = self._merge_and_suppress_boxes(detections, iou_thresh=0.45)
 
@@ -412,39 +421,44 @@ class YOLOService:
     # Morphological Road Cavity Extraction (Contour Fallback)
     # -------------------------------------------------------------
     def _detect_cavity_contours(self, img_bgr: np.ndarray, total_img_area: float) -> List[Dict[str, Any]]:
-        """Identifies deep road depressions using multi-scale morphological gradients."""
+        """Identifies deep road depressions and damaged surface cavities using adaptive contrast gradients."""
         h, w = img_bgr.shape[:2]
         gray = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2GRAY)
-        blurred = cv2.GaussianBlur(gray, (7, 7), 0)
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
 
         thresh = cv2.adaptiveThreshold(
             blurred, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-            cv2.THRESH_BINARY_INV, 31, 10
+            cv2.THRESH_BINARY_INV, 25, 5
         )
 
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        cleaned = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=2)
-        cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_CLOSE, kernel, iterations=2)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        cleaned = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1)
+        cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_CLOSE, kernel, iterations=1)
 
         contours, _ = cv2.findContours(cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         candidates = []
 
-        mean_full = float(np.mean(gray))
+        # Road-plane baseline brightness (focusing on pavement area, lower 80%)
+        road_slice = gray[int(h * 0.20):, :]
+        mean_road = float(np.mean(road_slice)) if road_slice.size > 0 else float(np.mean(gray))
 
         for cnt in contours:
             area = cv2.contourArea(cnt)
             area_ratio = area / total_img_area
-            # Allow small (0.2%) to large (35%) road defects
-            if 0.002 <= area_ratio <= 0.35:
+            # Allow small (0.1%) to wide (25%) pavement defect regions
+            if 0.0010 <= area_ratio <= 0.25:
                 bx, by, bw, bh = cv2.boundingRect(cnt)
+                # Defect must be in the road plane (below upper 15% horizon/sky)
+                if by < int(h * 0.15):
+                    continue
+
                 aspect = float(bw) / max(1.0, float(bh))
-                # Reasonable aspect ratio for potholes/cracks
                 if 0.25 <= aspect <= 4.0:
                     roi = gray[by:by + bh, bx:bx + bw]
                     mean_roi = float(np.mean(roi))
-                    if mean_roi < (mean_full * 0.94):
-                        delta = (mean_full - mean_roi) / max(1.0, mean_full)
-                        conf = min(0.96, max(0.68, 0.68 + delta * 0.45))
+                    if mean_roi < (mean_road * 0.94):
+                        delta = (mean_road - mean_roi) / max(1.0, mean_road)
+                        conf = min(0.92, max(0.60, 0.60 + delta * 0.40))
                         candidates.append({
                             "bbox_x1": float(bx),
                             "bbox_y1": float(by),
@@ -456,6 +470,8 @@ class YOLOService:
                             "class_name": "pothole"
                         })
 
+        # Keep top candidate defects sorted by confidence
+        candidates = sorted(candidates, key=lambda c: c["confidence"], reverse=True)[:8]
         return candidates
 
     # -------------------------------------------------------------

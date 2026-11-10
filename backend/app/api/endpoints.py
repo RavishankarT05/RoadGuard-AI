@@ -160,6 +160,7 @@ def detect_road_image(
     traffic_importance: str = Form("High"),
     nearby_facility: str = Form("None"),
     facility_risk: str = Form("None"),
+    confidence_threshold: float = Form(0.18),
     save_to_database: bool = Form(True),
     db: Session = Depends(get_db)
 ):
@@ -186,7 +187,8 @@ def detect_road_image(
         result = yolo_service.detect_potholes(
             image_path=str(upload_path),
             traffic_importance=traffic_importance,
-            facility_risk=facility_risk
+            facility_risk=facility_risk,
+            confidence_threshold=confidence_threshold
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI Vision Model inference failed: {str(e)}")

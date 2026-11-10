@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     # YOLO & AI Settings
     DEFAULT_MODEL_NAME: str = "pothole_best.pt"
     ACTIVE_MODEL_PATH: str = str(WEIGHTS_DIR / "pothole_best.pt")
-    CONFIDENCE_THRESHOLD: float = 0.25
+    CONFIDENCE_THRESHOLD: float = 0.18
     IOU_THRESHOLD: float = 0.45
     
     # CORS (supports comma-separated string or list)

@@ -33,6 +33,7 @@ export function DetectPage() {
   const [trafficImportance, setTrafficImportance] = useState('High');
   const [nearbyFacility, setNearbyFacility] = useState('Hospital');
   const [facilityRisk, setFacilityRisk] = useState('High');
+  const [confThreshold, setConfThreshold] = useState(0.18);
   const [saveToDb, setSaveToDb] = useState(true);
 
   const [loading, setLoading] = useState(false);
@@ -183,6 +184,7 @@ export function DetectPage() {
     formData.append('traffic_importance', trafficImportance);
     formData.append('nearby_facility', nearbyFacility);
     formData.append('facility_risk', facilityRisk);
+    formData.append('confidence_threshold', confThreshold);
     formData.append('save_to_database', saveToDb ? 'true' : 'false');
 
     try {
@@ -377,6 +379,28 @@ export function DetectPage() {
                 <option value="Low">Low Risk</option>
                 <option value="None">None</option>
               </select>
+            </div>
+
+            {/* Adaptive Confidence / Sensitivity Slider */}
+            <div className="bg-navy-950 p-2.5 rounded-xl border border-navy-800 space-y-1.5">
+              <div className="flex justify-between items-center text-xs">
+                <span className="text-slate-300 font-medium">Detection Sensitivity</span>
+                <span className="font-mono text-cyan-400 font-semibold">{Math.round(confThreshold * 100)}% Conf</span>
+              </div>
+              <input
+                type="range"
+                min="0.10"
+                max="0.45"
+                step="0.02"
+                value={confThreshold}
+                onChange={(e) => setConfThreshold(parseFloat(e.target.value))}
+                className="w-full accent-cyan-500 cursor-pointer h-1.5 bg-navy-900 rounded-lg"
+              />
+              <div className="flex justify-between text-[10px] text-slate-500 font-mono">
+                <span>High Sensitivity (10%)</span>
+                <span>Balanced (18%)</span>
+                <span>Strict (45%)</span>
+              </div>
             </div>
 
             <div className="flex items-center gap-2 pt-1">
